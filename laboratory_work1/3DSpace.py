@@ -7,6 +7,32 @@ from mpl_toolkits.mplot3d import Axes3D
 # Для MacOS можно использовать backend 'macosx'
 matplotlib.use('macosx')
 
+# ====================================================================
+# Итоговые формулы, используемые в симуляции:
+#
+# 1. Площадь поперечного сечения:
+#       A = π * (radius)^2
+#
+# 2. Относительная скорость (учёт ветра):
+#       v_rel = sqrt((vx - wind_x)^2 + (vy - wind_y)^2 + (vz - wind_z)^2)
+#
+# 3. Сила сопротивления воздуха (Drag):
+#       F_d = 0.5 * ρ * C_d * A * (v_rel)^2
+#
+# 4. Разложение силы сопротивления по осям:
+#       F_dx = -F_d * (vx - wind_x) / v_rel
+#       F_dy = -F_d * (vy - wind_y) / v_rel
+#       F_dz = -F_d * (vz - wind_z) / v_rel
+#
+# 5. Ускорения:
+#       ax = F_dx / mass
+#       ay = F_dy / mass
+#       az = -g + (F_dz / mass)
+#
+# g  - ускорение свободного падения (9.81 м/с²)
+# ρ  - плотность воздуха (1.29 кг/м³)
+# ====================================================================
+
 def simulate_trajectory_3d(v0, elevation_deg, azimuth_deg, wind_vector, mass, radius, Cd, dt=0.001):
     """
     Симуляция траектории снаряда в 3D с учетом сопротивления воздуха и ветра.
@@ -22,13 +48,13 @@ def simulate_trajectory_3d(v0, elevation_deg, azimuth_deg, wind_vector, mass, ra
       dt            - шаг по времени (с)
 
     Возвращает:
-      T    - массив времени
+      T     - массив времени
       X, Y, Z - массивы координат по осям X, Y, Z
       VX, VY, VZ - массивы компонент скорости
-      VREL - массив относительных скоростей (учёт ветра)
+      VREL  - массив относительных скоростей (учёт ветра)
     """
-    g = 9.81  # ускорение свободного падения
-    rho = 1.29  # плотность воздуха
+    g = 9.81      # ускорение свободного падения (м/с²)
+    rho = 1.29    # плотность воздуха (кг/м³)
     A = np.pi * radius ** 2  # площадь поперечного сечения
 
     # Перевод углов в радианы
@@ -58,14 +84,20 @@ def simulate_trajectory_3d(v0, elevation_deg, azimuth_deg, wind_vector, mass, ra
         VY.append(vy)
         VZ.append(vz)
 
-        # Вычисляем относительную скорость с учетом ветра
+        # Вычисляем относительную скорость с учетом ветра:
+        #   v_rel = sqrt((vx - wind_x)^2 + (vy - wind_y)^2 + (vz - wind_z)^2)
         vx_rel = vx - wind_vector[0]
         vy_rel = vy - wind_vector[1]
         vz_rel = vz - wind_vector[2]
-        v_rel = np.sqrt(vx_rel ** 2 + vy_rel ** 2 + vz_rel ** 2)
+        v_rel = np.sqrt(vx_rel**2 + vy_rel**2 + vz_rel**2)
         VREL.append(v_rel)
 
-        # Сила сопротивления (квадратичный закон)
+        # Сила сопротивления (Drag):
+        #   F_d = 0.5 * rho * Cd * A * v_rel^2
+        # Разложение силы сопротивления по осям:
+        #   F_dx = -F_d * (vx - wind_x) / v_rel
+        #   F_dy = -F_d * (vy - wind_y) / v_rel
+        #   F_dz = -F_d * (vz - wind_z) / v_rel
         if v_rel != 0:
             Fd = 0.5 * rho * Cd * A * (v_rel ** 2)
             Fdx = -Fd * (vx_rel / v_rel)
@@ -74,10 +106,13 @@ def simulate_trajectory_3d(v0, elevation_deg, azimuth_deg, wind_vector, mass, ra
         else:
             Fdx = Fdy = Fdz = 0
 
-        # Ускорения
+        # Вычисляем ускорения:
+        #   ax = F_dx / mass
+        #   ay = F_dy / mass
+        #   az = -g + (F_dz / mass)
         ax = Fdx / mass
         ay = Fdy / mass
-        az = -g + Fdz / mass  # Гравитация действует по оси Z
+        az = -g + (Fdz / mass)
 
         # Обновление скоростей
         vx += ax * dt
@@ -182,7 +217,7 @@ def main():
     ax2.legend()
     ax2.grid(True)
 
-    # 3. Относительная скорость
+    # 3. Относительная скорость по времени
     ax3 = fig.add_subplot(223)
     ax3.plot(T, VREL, label='Относительная скорость (м/с)', color='purple')
     ax3.set_title("Относительная скорость по времени")
