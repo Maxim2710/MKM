@@ -5,16 +5,35 @@ import matplotlib.animation as animation
 
 matplotlib.use('macosx')
 
-def simulate_trajectory(v0, angle_deg, wind_vector, mass, radius, Cd, dt=0.001):
+
+def simulate_trajectory(v0, angle_deg, wind_vector, mass, radius, Cd, omega, dt=0.001):
     """
-    Симуляция траектории снаряда с учетом сопротивления воздуха и ветра (2D).
-    Параметр wind_vector — кортеж (wind_x, wind_y).
-    Возвращает массивы времени T, координат X, Y, горизонтальной скорости VX,
-    вертикальной скорости VY и относительной скорости VREL.
+    Симуляция траектории снаряда с учетом сопротивления воздуха, ветра и эффекта Магнуса (2D).
+    Параметры:
+      v0         - начальная скорость (м/с)
+      angle_deg  - угол броска (в градусах)
+      wind_vector- кортеж (wind_x, wind_y)
+      mass       - масса снаряда (кг)
+      radius     - радиус снаряда (м)
+      Cd         - коэффициент лобового сопротивления
+      omega      - угловая скорость (рад/с)
+      dt         - шаг по времени (с)
+
+    Итоговые формулы:
+      A      = π * radius²
+      v_rel  = sqrt((vₓ - windₓ)² + (v_y - wind_y)²)
+      F_d    = 0.5 * ρ * C_d * A * v_rel²
+         F_dx = -F_d * (vₓ - windₓ) / v_rel
+         F_dy = -F_d * (v_y - wind_y) / v_rel
+      F_M    = 0.5 * ρ * A * radius * ω * v_rel
+         F_Mₓ = 0.5 * ρ * A * radius * ω * (v_y - wind_y)
+         F_M_y = -0.5 * ρ * A * radius * ω * (vₓ - windₓ)
+      aₓ = (F_dx + F_Mₓ) / mass
+      a_y = -g + (F_dy + F_M_y) / mass
     """
-    g = 9.81      # ускорение свободного падения
-    rho = 1.29    # плотность воздуха
-    A = np.pi * radius ** 2  # площадь поперечного сечения снаряда
+    g = 9.81  # ускорение свободного падения (м/с²)
+    rho = 1.29  # плотность воздуха (кг/м³)
+    A = np.pi * radius ** 2  # площадь поперечного сечения
 
     angle_rad = np.deg2rad(angle_deg)
     vx = v0 * np.cos(angle_rad)
@@ -32,31 +51,36 @@ def simulate_trajectory(v0, angle_deg, wind_vector, mass, radius, Cd, dt=0.001):
         VX.append(vx)
         VY.append(vy)
 
-        # Вычисляем относительную скорость с учетом ветрового вектора
+        # Относительная скорость (с учетом ветра)
         vx_rel = vx - wind_vector[0]
         vy_rel = vy - wind_vector[1]
         v_rel = np.sqrt(vx_rel ** 2 + vy_rel ** 2)
         VREL.append(v_rel)
 
-        # Сила сопротивления (квадратичный закон)
+        # Сила сопротивления воздуха (Drag)
         if v_rel != 0:
-            Fd = 0.5 * rho * Cd * A * (v_rel ** 2)
+            Fd = 0.5 * rho * Cd * A * v_rel ** 2
             Fdx = -Fd * (vx_rel / v_rel)
             Fdy = -Fd * (vy_rel / v_rel)
         else:
-            Fdx = 0
-            Fdy = 0
+            Fdx, Fdy = 0, 0
 
-        # Ускорения
-        ax = Fdx / mass
-        ay = -g + Fdy / mass
+        # Эффект Магнуса
+        if v_rel != 0:
+            F_Mx = 0.5 * rho * A * radius * omega * vy_rel
+            F_My = -0.5 * rho * A * radius * omega * vx_rel
+        else:
+            F_Mx, F_My = 0, 0
+
+        # Итоговые ускорения
+        ax = (Fdx + F_Mx) / mass
+        ay = -g + (Fdy + F_My) / mass
 
         # Обновление скоростей и координат
         vx += ax * dt
         vy += ay * dt
         x += vx * dt
         y += vy * dt
-
         t += dt
 
     return np.array(T), np.array(X), np.array(Y), np.array(VX), np.array(VY), np.array(VREL)
@@ -101,7 +125,7 @@ def main():
     Главная функция: запрашивает параметры, рассчитывает траекторию, строит
     статические графики и запускает анимацию (по выбору пользователя).
     """
-    print("=== Расчёт траектории полёта с учётом сопротивления и ветра (2D) ===")
+    print("=== Расчёт траектории с учетом сопротивления, ветра и эффекта Магнуса (2D) ===")
     try:
         v0 = float(input("Начальная скорость (м/с): "))
         angle_deg = float(input("Угол броска (градусы): "))
@@ -112,12 +136,13 @@ def main():
         mass = float(input("Масса снаряда (кг): "))
         radius = float(input("Радиус снаряда (м): "))
         Cd = float(input("Коэффициент лобового сопротивления (обычно 0.1..1.0): "))
+        omega = float(input("Угловая скорость (рад/с): "))
     except ValueError:
         print("Ошибка ввода! Проверьте правильность введённых значений.")
         return
 
     # Расчёт траектории
-    T, X, Y, VX, VY, VREL = simulate_trajectory(v0, angle_deg, wind_vector, mass, radius, Cd)
+    T, X, Y, VX, VY, VREL = simulate_trajectory(v0, angle_deg, wind_vector, mass, radius, Cd, omega)
 
     # Построение дополнительных графиков
     fig, axs = plt.subplots(3, 1, figsize=(10, 15))
